@@ -1,5 +1,5 @@
 ﻿/*
- * RoboLink — ESP32 RC Car (Bluetooth)
+ * RoboLink — ESP32 RC Car (WiFi)
  * =========================================================
  * FIX 1 - Timeout guard wraps mixing; motors stop on disconnect.
  * FIX 2 - Raw throttle (no abs) for proper reverse.
@@ -20,16 +20,17 @@
  *       IN4 (right rev)    -> ESP32 pin 32
  *
  * App setup:
- *   1. Pair the ESP32 on your phone (Bluetooth settings).
- *   2. Open the RoboLink app -> Bluetooth mode -> select "RoboLink".
+ *   1. Connect phone to the WiFi network created by the ESP32.
+ *   2. Open the RoboLink app -> WiFi mode -> connect.
  *   3. Add a Joystick widget -> keys "throttle" and "steer".
  *   4. Drive!
  */
 
 #include <RoboLink.h>
 
-/* ── Bluetooth name ───────────────────────────────────────────────────── */
-const char* BT_NAME = "RoboLink";
+/* ── WiFi credentials ─────────────────────────────────────────────────── */
+const char* WIFI_SSID     = "RoboLink";
+const char* WIFI_PASSWORD = "12345678";
 
 /* ── Motor pins (L298N) ──────────────────────────────────────────────── */
 const int MOTOR_L_EN  = 12;
@@ -45,7 +46,7 @@ const int PWM_RES  = 8;
 const int CH_L = 0, CH_R = 1;
 
 /* ── Objects ──────────────────────────────────────────────────────────── */
-RoboLinkBT robolink;
+RoboLinkWiFi robolink;
 unsigned long lastPrint = 0;
 
 /* ── PWM setup (ESP32 Core 2.x / 3.x compat) ────────────────────────── */
@@ -72,7 +73,7 @@ void stopMotors(uint8_t enPin, uint8_t in1, uint8_t in2) {
 void setup() {
     Serial.begin(115200);
     delay(500);
-    Serial.println(F("\n-- RoboLink ESP32 RC Car (BT) --\n"));
+    Serial.println(F("\n-- RoboLink ESP32 RC Car (WiFi) --\n"));
 
     pinMode(MOTOR_L_IN1, OUTPUT);
     pinMode(MOTOR_L_IN2, OUTPUT);
@@ -80,11 +81,12 @@ void setup() {
     pinMode(MOTOR_R_IN2, OUTPUT);
     setupPWM();
 
-    if (!robolink.begin(BT_NAME)) {
-        Serial.println(F("Bluetooth failed!")); while (true) delay(1000);
+    if (!robolink.beginAP(WIFI_SSID, WIFI_PASSWORD)) {
+        Serial.println(F("WiFi AP failed!")); while (true) delay(1000);
     }
 
-    Serial.print(F("Bluetooth: ")); Serial.println(BT_NAME);
+    Serial.print(F("WiFi AP: ")); Serial.println(WIFI_SSID);
+    Serial.print(F("IP: "));      Serial.println(robolink.localIP());
     Serial.println(F("Waiting for connection..."));
 
     robolink.setTimeoutMs(500);
@@ -131,8 +133,8 @@ void loop() {
 
     if (millis() - lastPrint >= 2000) {
         lastPrint = millis();
-        if (!robolink.hasClient()) {
-            Serial.println(F("[WAIT] No device connected."));
+        if (robolink.clientCount() == 0) {
+            Serial.println(F("[WAIT] No phone connected."));
         } else if (!robolink.hasReceivedData()) {
             Serial.println(F("[WAIT] Connected. Waiting for joystick..."));
         } else if (robolink.isTimedOut()) {

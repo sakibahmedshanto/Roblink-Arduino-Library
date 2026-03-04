@@ -116,8 +116,10 @@ void RoboLinkSerial::update() {
 void RoboLinkSerial::_doSend() {
     if (!_output || _sensors.count() == 0) return;
 
-    /* Build message into a stack buffer — no heap on AVR */
-    char buf[96];
+    /* Build message into a stack buffer — no heap on AVR.
+     * Use ROBOLINK_LINE_BUF (128 on AVR, 512 on ESP32) so the
+     * buffer is always large enough for the maximum message size. */
+    char buf[ROBOLINK_LINE_BUF];
     size_t len = _sensors.buildMessage(buf, sizeof(buf));
     if (len > 0) {
         _output->write((const uint8_t*)buf, len);

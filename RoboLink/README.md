@@ -1,8 +1,3 @@
-# RoboLink Arduino Library
-
-**ESP32 companion library for the [RoboLink](https://github.com/nicezki/robolink) controller app.**
-
-Receive real-time control data from the RoboLink Flutter app over **WiFi (UDP)** or **Bluetooth Classic (SPP)** with a dead-simple API. Send sensor data back just as easily.
 
 ```cpp
 #include <RoboLink.h>
