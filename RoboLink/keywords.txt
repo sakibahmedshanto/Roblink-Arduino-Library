@@ -1,0 +1,79 @@
+#######################################
+# Syntax Colouring — RoboLink Library
+#######################################
+
+#######################################
+# Classes (KEYWORD1)
+#######################################
+
+RoboLink	KEYWORD1
+RoboLinkParser	KEYWORD1
+RoboLinkWiFi	KEYWORD1
+RoboLinkBT	KEYWORD1
+RoboLinkSerial	KEYWORD1
+
+#######################################
+# Methods (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+beginAP	KEYWORD2
+beginSTA	KEYWORD2
+beginSaved	KEYWORD2
+stop	KEYWORD2
+end	KEYWORD2
+update	KEYWORD2
+get	KEYWORD2
+has	KEYWORD2
+set	KEYWORD2
+remove	KEYWORD2
+count	KEYWORD2
+keyAt	KEYWORD2
+valueAt	KEYWORD2
+forEach	KEYWORD2
+printAll	KEYWORD2
+printSensors	KEYWORD2
+buildMessage	KEYWORD2
+feed	KEYWORD2
+setSensor	KEYWORD2
+removeSensor	KEYWORD2
+sendSensors	KEYWORD2
+sensorCount	KEYWORD2
+dataCount	KEYWORD2
+onReceive	KEYWORD2
+onMessage	KEYWORD2
+setSendInterval	KEYWORD2
+setTimeoutMs	KEYWORD2
+isTimedOut	KEYWORD2
+hasReceivedData	KEYWORD2
+lastRxTime	KEYWORD2
+isConnected	KEYWORD2
+isStarted	KEYWORD2
+hasClient	KEYWORD2
+localIP	KEYWORD2
+ssid	KEYWORD2
+port	KEYWORD2
+remoteIP	KEYWORD2
+parser	KEYWORD2
+serial	KEYWORD2
+stream	KEYWORD2
+udp	KEYWORD2
+bytesReceived	KEYWORD2
+messagesReceived	KEYWORD2
+clientCount	KEYWORD2
+isAPMode	KEYWORD2
+saveCredentials	KEYWORD2
+hasSavedCredentials	KEYWORD2
+clearCredentials	KEYWORD2
+setupFromSerial	KEYWORD2
+clear	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+ROBOLINK_VERSION	LITERAL1
+ROBOLINK_MAX_PAIRS	LITERAL1
+ROBOLINK_MAX_KEY_LEN	LITERAL1
+ROBOLINK_LINE_BUF	LITERAL1
+ROBOLINK_DEFAULT_PORT	LITERAL1
