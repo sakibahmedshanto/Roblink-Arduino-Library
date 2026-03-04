@@ -1,5 +1,5 @@
-*
- * RoboLink — Arduino RC Car (Bluetooth via HC-05 / HC-06)
+/*
+ * RoboLink - Arduino RC Car (Bluetooth via HC-05 / HC-06)
  * =========================================================
  * FIX 1 - Timeout guard wraps mixing; motors stop on disconnect.
  * FIX 2 - Raw throttle (no abs) for proper reverse.
