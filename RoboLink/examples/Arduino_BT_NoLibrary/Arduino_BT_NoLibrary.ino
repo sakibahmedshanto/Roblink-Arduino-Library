@@ -1,4 +1,4 @@
-﻿/*
+/*
  * RoboLink — Arduino Bluetooth  (No Library)
  * ============================================
  * Protocol:  key1:val1,key2:val2,...\n   (plain text, one line per message)
@@ -25,7 +25,7 @@ const long BT_BAUD         = 9600;
 const unsigned long TIMEOUT_MS = 1000;
 
 /* -- Key-value store (internal) ------------------------------------- */
-#define MAX_KEYS  8
+#define MAX_KEYS  16    /* each KV = ~15 bytes; 16 pairs = ~240 B on AVR */
 #define KEY_LEN  12
 struct KV { char k[KEY_LEN+1]; int v; };
 static KV            store[MAX_KEYS];

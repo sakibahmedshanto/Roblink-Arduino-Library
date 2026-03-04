@@ -30,7 +30,7 @@
   #endif
 #else
   #ifndef ROBOLINK_MAX_PAIRS
-  #define ROBOLINK_MAX_PAIRS     32
+  #define ROBOLINK_MAX_PAIRS     64
   #endif
   #ifndef ROBOLINK_MAX_KEY_LEN
   #define ROBOLINK_MAX_KEY_LEN   24
@@ -85,7 +85,7 @@ public:
 
     /* ── change detection ────────────────────────────────────────────── */
     bool     changed(int index) const;     /* did key at index change? */
-    uint32_t changedMask() const;           /* bitmask of changed keys */
+    uint64_t changedMask() const;           /* bitmask of changed keys (up to 64) */
     int      changedCount() const;          /* number of changed keys  */
 
     /* ── reset ───────────────────────────────────────────────────────── */
@@ -103,7 +103,7 @@ private:
     int  _lineIdx;
     bool _overflow;                /* line too long → skip until \n */
 
-    uint32_t      _changedMask;    /* bitmask: bit i = key i changed */
+    uint64_t      _changedMask;    /* bitmask: bit i = key i changed (up to 64 keys) */
     unsigned long _lastRxMs;
     unsigned long _timeoutMs;
 

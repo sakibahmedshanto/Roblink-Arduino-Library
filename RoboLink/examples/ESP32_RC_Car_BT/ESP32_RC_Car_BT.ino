@@ -1,4 +1,4 @@
-﻿/*
+*
  * RoboLink — ESP32 RC Car (Bluetooth)
  * =========================================================
  * FIX 1 - Timeout guard wraps mixing; motors stop on disconnect.

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * RoboLink — ESP32 WiFi  (No Library)
  * ======================================
  * Protocol:  key1:val1,key2:val2,...\n   (plain text over UDP)
@@ -28,7 +28,7 @@ const int   UDP_PORT       = 4210;
 const unsigned long TIMEOUT_MS = 500;
 
 /* -- Key-value store (internal) ------------------------------------- */
-#define MAX_KEYS  32
+#define MAX_KEYS  100
 #define KEY_LEN   24
 struct KV { char k[KEY_LEN+1]; int v; };
 static KV            store[MAX_KEYS];

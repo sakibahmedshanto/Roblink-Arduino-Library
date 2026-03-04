@@ -63,7 +63,7 @@ int RoboLinkParser::feed(const uint8_t* data, size_t len) {
 /* ════════════════════════════════════════════════════════════════════ */
 
 void RoboLinkParser::_parseLine() {
-    _changedMask = 0;              /* reset change tracking */
+    _changedMask = 0ULL;           /* reset change tracking */
     char* ptr = _lineBuf;
     while (*ptr) {
         while (*ptr == ' ' || *ptr == '\t') ptr++;
@@ -89,13 +89,13 @@ void RoboLinkParser::_parseLine() {
         if (idx >= 0) {
             if (_pairs[idx].value != (int)value) {
                 _pairs[idx].value = (int)value;
-                _changedMask |= ((uint32_t)1 << idx);
+                _changedMask |= ((uint64_t)1 << idx);
             }
         } else if (_count < ROBOLINK_MAX_PAIRS) {
             strncpy(_pairs[_count].key, keyBuf, ROBOLINK_MAX_KEY_LEN);
             _pairs[_count].key[ROBOLINK_MAX_KEY_LEN] = '\0';
             _pairs[_count].value = (int)value;
-            _changedMask |= ((uint32_t)1 << _count);
+            _changedMask |= ((uint64_t)1 << _count);
             _count++;
         }
 
@@ -213,8 +213,8 @@ unsigned long RoboLinkParser::lastRxTime() const { return _lastRxMs; }
 /*  Change detection                                                    */
 /* ════════════════════════════════════════════════════════════════════ */
 
-bool     RoboLinkParser::changed(int i) const  { return (i >= 0 && i < _count) && (_changedMask & ((uint32_t)1 << i)); }
-uint32_t RoboLinkParser::changedMask() const    { return _changedMask; }
+bool     RoboLinkParser::changed(int i) const  { return (i >= 0 && i < _count) && (_changedMask & ((uint64_t)1 << i)); }
+uint64_t RoboLinkParser::changedMask() const    { return _changedMask; }
 int      RoboLinkParser::changedCount() const   {
     uint32_t m = _changedMask; int n = 0;
     while (m) { n += (m & 1); m >>= 1; }

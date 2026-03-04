@@ -35,11 +35,11 @@ void RoboLinkBT::update() {
     /* 2. Callbacks AFTER reading — only changed keys */
     if (gotMsg) {
         if (_valueCb) {
-            uint32_t mask = _rx.changedMask();
+            uint64_t mask = _rx.changedMask();
             for (int i = 0; i < _rx.count() && mask; i++) {
-                if (mask & ((uint32_t)1 << i)) {
+                if (mask & ((uint64_t)1 << i)) {
                     _valueCb(_rx.keyAt(i), _rx.valueAt(i));
-                    mask &= ~((uint32_t)1 << i);
+                    mask &= ~((uint64_t)1 << i);
                 }
             }
         }
