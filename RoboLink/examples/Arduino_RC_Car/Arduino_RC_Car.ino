@@ -1,39 +1,7 @@
-/*
- * RoboLink - Arduino RC Car (Bluetooth via HC-05 / HC-06)
- * =========================================================
- * FIX 1 - Timeout guard wraps mixing; motors stop on disconnect.
- * FIX 2 - Raw throttle (no abs) for proper reverse.
- * FIX 3 - abs(right) not abs(left) in right-motor branch.
- * FIX 4 - steerDir flips when throttle < 0 so backward-left = left.
- *
- * Hardware:
- *   Board  : Arduino Uno / Nano / Mega  (or any AVR Arduino)
- *   BT     : HC-05 or HC-06 module on SoftwareSerial
- *   Driver : L298N
- *
- *   Wiring:
- *     HC-05 TX  -> Arduino pin 10  (SoftwareSerial RX)
- *     HC-05 RX  -> Arduino pin 11  (SoftwareSerial TX)  *use voltage divider!
- *     HC-05 VCC -> 5V,  GND -> GND
- *
- *     L298N:
- *       ENA (left speed)   -> Arduino pin 5  (PWM)
- *       IN1 (left fwd)     -> Arduino pin 7
- *       IN2 (left rev)     -> Arduino pin 8
- *       ENB (right speed)  -> Arduino pin 6  (PWM)
- *       IN3 (right fwd)    -> Arduino pin 9
- *       IN4 (right rev)    -> Arduino pin 4
- *
- * App setup:
- *   1. Pair HC-05/HC-06 on your phone (default PIN: 1234 or 0000).
- *   2. Open the RoboLink app -> Bluetooth mode -> select the module.
- *   3. Add a Joystick widget -> keys "throttle" and "steer".
- *   4. Drive!
- */
-
 #include <RoboLink.h>
 
 #define _SS_MAX_RX_BUFF 128
+
 #include <SoftwareSerial.h>
 
 const int  BT_RX_PIN = 10;
@@ -90,15 +58,6 @@ void loop() {
     int right = 0;
 
     if (!robolink.isTimedOut() && robolink.hasReceivedData()) {
-        /*
-         * steerDir = +1 when going forward, -1 when reversing.
-         * This keeps steering intuitive in both directions.
-         * Example: throttle=-50, steer=-30 (backward-left)
-         *   Without fix: left=-50+(-30)=-80, right=-50-(-30)=-20
-         *     -> left spins faster backward = car curves RIGHT (wrong!)
-         *   With fix:    left=-50+(-30*-1)=-20, right=-50-(-30*-1)=-80
-         *     -> right spins faster backward = car curves LEFT (correct!)
-         */
         int steerDir = (throttle >= -20) ? 1 : -1;
         left  = throttle + steer * steerDir;
         right = throttle - steer * steerDir;

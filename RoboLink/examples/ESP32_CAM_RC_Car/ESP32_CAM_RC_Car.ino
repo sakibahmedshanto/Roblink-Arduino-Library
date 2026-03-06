@@ -1,38 +1,23 @@
 /*
  * RoboLink — ESP32-CAM RC Car (WiFi + Camera)
  * =============================================
- * Drive a 2-motor car from the RoboLink app with live camera feed.
- *
- * Features:
- *   • Differential drive via WiFi UDP joystick
- *       joy_y = throttle (base speed for both motors)
- *       joy_x = steer    (speed difference between L and R)
- *   • MJPEG camera stream on http://<IP>:81/stream
- *   • Flash LED toggle via key "light" (debounced)
+ * Simple 4-direction RC car: Forward / Backward / Left / Right
  *
  * Hardware:
- *   Board  : AI-Thinker ESP32-CAM (or compatible)
+ *   Board  : AI-Thinker ESP32-CAM
  *   Driver : L298N
- *   RIGHT_MOTOR → EnA=12, IN1=13, IN2=15
- *   LEFT_MOTOR  → EnB=4,  IN3=14, IN4=2
  *
- *   GPIO 12 = right motor enable (PWM speed)
- *   GPIO 4  = left motor enable  (PWM speed)
- *   This gives independent speed per side (true differential drive).
- *
- *   ⚠  GPIO 4 is the flash LED pin on AI-Thinker boards.
- *      Using it for motor control means the flash LED is NOT available.
+ *   SPEED_PIN (GPIO 12) → ENA and ENB tied together (single speed pin)
+ *   IN1       (GPIO 13) → Right motors terminal A
+ *   IN2       (GPIO 15) → Right motors terminal B
+ *   IN3       (GPIO 14) → Left motors terminal A
+ *   IN4       (GPIO  2) → Left motors terminal B
  *
  * App setup:
- *   1. Connect phone to the "RoboLink_CAM" WiFi network.
- *   2. Add a Joystick widget   → keys "joy_x" and "joy_y"
- *   3. Add a Camera widget     → URL  http://192.168.4.1:81/stream
+ *   1. Connect phone to "RoboLink_CAM" WiFi.
+ *   2. Add a Joystick widget  → keys "joy_x" and "joy_y"
+ *   3. Add a Camera widget    → URL http://192.168.4.1:81/stream
  *   4. Drive!
- *
- * NOTE: The ESP32-CAM has very few free GPIOs. Pins 12, 13, 14, 15
- *       are usable when the SD-card slot is NOT in use.  GPIO 2 is
- *       shared with the on-board LED but works fine for motor output.
- *       GPIO 4 is used for left motor enable (differential speed).
  */
 
 #include <RoboLink.h>
@@ -46,22 +31,11 @@ const char* WIFI_SSID     = "RoboLink_CAM";
 const char* WIFI_PASSWORD = "12345678";
 
 /* ── Motor pins (L298N) ──────────────────────────────────────────────── */
-//  {EnA, IN1, IN2}  — RIGHT motor
-//  {EnB, IN3, IN4}  — LEFT motor
-const int MOTOR_R_EN  = 12;
-const int MOTOR_R_IN1 = 13;
-const int MOTOR_R_IN2 = 15;
-
-const int MOTOR_L_EN  = 4;    // separate enable pin (GPIO 4) for differential speed
-const int MOTOR_L_IN1 = 14;
-const int MOTOR_L_IN2 = 2;
-
-/* ── Flash LED — NOT available (GPIO 4 used for motor enable) ────────── */
-// const int FLASH_LED_PIN = 4;  // pin reassigned to MOTOR_L_EN
-
-/* ── PWM config ──────────────────────────────────────────────────────── */
-const int PWM_FREQ   = 5000;
-const int PWM_RES    = 8;     // 0-255
+const int SPEED_PIN = 12;   // ENA + ENB tied together → single speed pin
+const int IN1       = 13;   // Right motors: forward
+const int IN2       = 15;   // Right motors: backward
+const int IN3       = 14;   // Left motors:  forward
+const int IN4       =  2;   // Left motors:  backward
 
 /* ── Camera pin definition — AI-Thinker ESP32-CAM ────────────────────── */
 #define PWDN_GPIO_NUM     32
@@ -81,15 +55,46 @@ const int PWM_RES    = 8;     // 0-255
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-/* ── MJPEG stream server on port 81 (runs on Core 0 as a FreeRTOS task) */
+/* ── MJPEG stream server on port 81 ──────────────────────────────────── */
 #define STREAM_PORT 81
 
-/* ── RoboLink WiFi (UDP control on default port 4210) ────────────────── */
+/* ── RoboLink object ─────────────────────────────────────────────────── */
 RoboLinkWiFi robolink;
-
-/* ── State ───────────────────────────────────────────────────────────── */
 unsigned long lastPrint = 0;
-int speedL = 0, speedR = 0;
+
+/* ===================================================================== */
+/*  Motor commands                                                        */
+/* ===================================================================== */
+
+void motorForward(int speed) {
+    analogWrite(SPEED_PIN, speed);
+    digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);
+    digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);
+}
+
+void motorBackward(int speed) {
+    analogWrite(SPEED_PIN, speed);
+    digitalWrite(IN1, LOW);  digitalWrite(IN2, HIGH);
+    digitalWrite(IN3, LOW);  digitalWrite(IN4, HIGH);
+}
+
+void motorLeft(int speed) {
+    analogWrite(SPEED_PIN, speed);
+    digitalWrite(IN1, HIGH); digitalWrite(IN2, LOW);   // right forward
+    digitalWrite(IN3, LOW);  digitalWrite(IN4, HIGH);  // left backward
+}
+
+void motorRight(int speed) {
+    analogWrite(SPEED_PIN, speed);
+    digitalWrite(IN1, LOW);  digitalWrite(IN2, HIGH);  // right backward
+    digitalWrite(IN3, HIGH); digitalWrite(IN4, LOW);   // left forward
+}
+
+void motorStop() {
+    analogWrite(SPEED_PIN, 0);
+    digitalWrite(IN1, LOW); digitalWrite(IN2, LOW);
+    digitalWrite(IN3, LOW); digitalWrite(IN4, LOW);
+}
 
 /* ===================================================================== */
 /*  Camera initialisation                                                 */
@@ -142,19 +147,7 @@ bool initCamera() {
         s->set_saturation(s, 0);     // -2 to 2
     }
 
-    /*
-     * Disable the camera driver's internal flash LED control.
-     * On AI-Thinker boards the camera driver may pulse GPIO 4
-     * briefly during frame captures.  Since GPIO 4 is now used
-     * for motor enable, we must prevent the camera driver from
-     * interfering with it.
-     */
-    sensor_t* sensor = esp_camera_sensor_get();
-    if (sensor) {
-        sensor->set_aec2(sensor, 0);       // disable auto-exposure flash
-    }
-
-    Serial.println(F("[CAM] Camera initialised OK"));
+    Serial.println(F("[CAM] Camera OK"));
     return true;
 }
 
@@ -225,46 +218,7 @@ void streamTask(void* pvParameters) {
     }
 }
 
-/* ===================================================================== */
-/*  Motor helpers                                                         */
-/* ===================================================================== */
-/*
- * MOTOR_R_EN (GPIO 12) and MOTOR_L_EN (GPIO 4) are separate pins,
- * giving true independent PWM speed control per motor (differential drive).
- */
 
-#if ESP_ARDUINO_VERSION_MAJOR >= 3
-  /* ESP32 Arduino Core 3.x — ledcAttach(pin, freq, res) */
-  void setupPWM() {
-      ledcAttach(MOTOR_R_EN, PWM_FREQ, PWM_RES);
-      ledcAttach(MOTOR_L_EN, PWM_FREQ, PWM_RES);
-  }
-  void setMotorPWM(uint8_t pin, uint32_t duty) { ledcWrite(pin, duty); }
-#else
-  /* ESP32 Arduino Core 2.x */
-  #define CH_MOTOR_R  2   // LEDC channel 2 (0 & 1 taken by camera XCLK)
-  #define CH_MOTOR_L  3   // LEDC channel 3
-  void setupPWM() {
-      ledcSetup(CH_MOTOR_R, PWM_FREQ, PWM_RES);
-      ledcAttachPin(MOTOR_R_EN, CH_MOTOR_R);
-      ledcSetup(CH_MOTOR_L, PWM_FREQ, PWM_RES);
-      ledcAttachPin(MOTOR_L_EN, CH_MOTOR_L);
-  }
-  void setMotorPWM(uint8_t pin, uint32_t duty) {
-      ledcWrite(pin == MOTOR_R_EN ? CH_MOTOR_R : CH_MOTOR_L, duty);
-  }
-#endif
-
-void setMotor(uint8_t en, uint8_t in1, uint8_t in2, int speed) {
-    digitalWrite(in1, speed > 0 ? HIGH : LOW);
-    digitalWrite(in2, speed < 0 ? HIGH : LOW);
-    setMotorPWM(en, constrain(abs(speed), 0, 255));
-}
-
-void driveMotors(int left, int right) {
-    setMotor(MOTOR_R_EN, MOTOR_R_IN1, MOTOR_R_IN2, right);
-    setMotor(MOTOR_L_EN, MOTOR_L_IN1, MOTOR_L_IN2, left);
-}
 
 /* ===================================================================== */
 /*  setup()                                                               */
@@ -278,11 +232,10 @@ void setup() {
     Serial.println(F("══════════════════════════════════════════\n"));
 
     /* ── Motor pins ─────────────────────────────────────────────────── */
-    pinMode(MOTOR_R_IN1, OUTPUT);
-    pinMode(MOTOR_R_IN2, OUTPUT);
-    pinMode(MOTOR_L_IN1, OUTPUT);
-    pinMode(MOTOR_L_IN2, OUTPUT);
-    setupPWM();
+    pinMode(SPEED_PIN, OUTPUT);
+    pinMode(IN1, OUTPUT); pinMode(IN2, OUTPUT);
+    pinMode(IN3, OUTPUT); pinMode(IN4, OUTPUT);
+    motorStop();
 
     /* ── Camera ─────────────────────────────────────────────────────── */
     if (!initCamera()) {
@@ -295,114 +248,77 @@ void setup() {
         while (true) delay(1000);
     }
 
-    Serial.print(F("WiFi AP  : ")); Serial.println(WIFI_SSID);
-    Serial.print(F("IP       : ")); Serial.println(robolink.localIP());
-    Serial.print(F("UDP port : ")); Serial.println(robolink.port());
-    Serial.printf( "Stream   : http://%s:%d/stream\n",
-                    robolink.localIP().toString().c_str(), STREAM_PORT);
+    Serial.print(F("WiFi AP : ")); Serial.println(WIFI_SSID);
+    Serial.print(F("IP      : ")); Serial.println(robolink.localIP());
+    Serial.printf("Stream  : http://%s:%d/stream\n",
+                  robolink.localIP().toString().c_str(), STREAM_PORT);
 
-    /* ── MJPEG stream task on Core 0 ─────────────────────────────────── */
-    xTaskCreatePinnedToCore(
-        streamTask,       /* task function      */
-        "mjpeg",          /* name               */
-        4096,             /* stack size (bytes) */
-        NULL,             /* parameter          */
-        1,                /* priority           */
-        NULL,             /* task handle        */
-        0                 /* Core 0             */
-    );
+    /* Start MJPEG stream on Core 0 */
+    xTaskCreatePinnedToCore(streamTask, "mjpeg", 4096, NULL, 1, NULL, 0);
 
-    /* ── RoboLink settings ──────────────────────────────────────────── */
     robolink.setTimeoutMs(500);
     robolink.setSendInterval(200);
-
-    Serial.println(F("\n── App widgets ──────────────────────────"));
-    Serial.println(F("  Joystick  → keys \"joy_x\", \"joy_y\""));
-    Serial.printf( "  Camera    → URL  http://%s:%d/stream\n",
-                    robolink.localIP().toString().c_str(), STREAM_PORT);
-    Serial.println(F("─────────────────────────────────────────\n"));
 }
 
 /* ===================================================================== */
 /*  loop()                                                                */
 /* ===================================================================== */
 void loop() {
-    /* ── Handle RoboLink UDP control data ───────────────────────────── */
     robolink.update();
 
-    /* (MJPEG stream runs on Core 0 — nothing to do here) */
+    int throt = robolink.get("joy_y");  // -100 ... +100  (forward/backward)
+    int steer = robolink.get("joy_x");  // -100 ... +100  (left/right)
 
-    /* ═══════════════════════════════════════════════════════════════════
-     *  Differential Drive
-     * ═══════════════════════════════════════════════════════════════════
-     *  throttle (joy_y) : base speed for both motors  –255 … +255
-     *  steer    (joy_x) : speed *difference*           –255 … +255
-     *
-     *  left  = throttle + steer
-     *  right = throttle – steer
-     *
-     *  Steer > 0 (right) → deducts from right, adds to left.
-     *  Steer < 0 (left)  → deducts from left,  adds to right.
-     *
-     *  When throttle == 0 and steer != 0 the car pivots in place.
-     *
-     *  Instead of hard-clamping (which wrecks the left/right ratio at
-     *  the extremes), we proportionally scale both motors so the
-     *  steering feel stays consistent at every speed.
-     */
-
-    int rawThrottle = robolink.get("joy_y");   // –100 … +100
-    int rawSteer    = robolink.get("joy_x");   // –100 … +100
-
-    /* Map joystick range (–100..100) to full PWM range (–255..255) */
-    int throttle = map(rawThrottle, -100, 100, -255, 255);
-    int steer    = map(rawSteer,    -100, 100, -255, 255);
-
-    /* Small dead-zone to stop micro-drift when sticks are centred */
-    if (abs(throttle) < 10) throttle = 0;
-    if (abs(steer)    < 10) steer    = 0;
-
-    int left  = throttle + steer;
-    int right = throttle - steer;
+    /* Stop on timeout or before first data */
+    if (robolink.isTimedOut() || !robolink.hasReceivedData()) {
+        motorStop();
+        return;
+    }
 
     /*
-     * Proportional scaling — keeps the L/R ratio intact.
-     * Example: throttle 200, steer 200 → raw L=400, R=0
-     *          scale factor = 255/400  → L=255, R=0  (ratio preserved)
-     * Clamping would give L=255, R=0 too in this case, but at diagonal
-     * extremes clamping distorts the curve while scaling does not.
+     * Simple 4-direction logic:
+     * Whichever axis is pushed harder wins.
+     * Speed is mapped from joystick (0-100) to PWM (0-255).
      */
-    int peak = max(abs(left), abs(right));
-    if (peak > 255) {
-        left  = left  * 255 / peak;
-        right = right * 255 / peak;
+    if (abs(throt) >= abs(steer)) {
+        if (throt > 10) {
+            motorForward(map(throt, 0, 100, 0, 255));
+        } else if (throt < -10) {
+            motorBackward(map(-throt, 0, 100, 0, 255));
+        } else {
+            motorStop();
+        }
+    } else {
+        if (steer > 10) {
+            motorRight(map(steer, 0, 100, 0, 255));
+        } else if (steer < -10) {
+            motorLeft(map(-steer, 0, 100, 0, 255));
+        } else {
+            motorStop();
+        }
     }
 
-    /* Safety: stop motors on timeout or before first data */
-    if (robolink.isTimedOut() || !robolink.hasReceivedData()) {
-        left = right = 0;
-    }
+    /* Send uptime back to app */
+    robolink.setSensor("uptime", (int)(millis() / 1000));
 
-    speedL = left;
-    speedR = right;
-    driveMotors(left, right);
-
-    /* ── Send sensor data back to the app ───────────────────────────── */
-    robolink.setSensor("speed_l", speedL);
-    robolink.setSensor("speed_r", speedR);
-    robolink.setSensor("uptime",  (int)(millis() / 1000));
-
-    /* ── Periodic status to Serial Monitor ──────────────────────────── */
-    if (millis() - lastPrint >= 3000) {
+    /* Periodic Serial status */
+    if (millis() - lastPrint >= 500) {
         lastPrint = millis();
         if (robolink.clientCount() == 0) {
-            Serial.println(F("[WiFi] No phone connected."));
+            Serial.println(F("[WAIT] No phone connected."));
         } else if (!robolink.hasReceivedData()) {
-            Serial.println(F("[WiFi] Phone connected. Waiting for joystick..."));
+            Serial.println(F("[WAIT] Waiting for joystick..."));
         } else if (robolink.isTimedOut()) {
-            Serial.println(F("[WiFi] Signal lost — motors stopped."));
+            Serial.println(F("[LOST] Signal lost — motors stopped."));
         } else {
-            Serial.printf("[OK] L=%d  R=%d\n", speedL, speedR);
+            /* Determine current command direction */
+            const char* dir = "STOP";
+            if      (abs(throt) >= abs(steer) && throt >  10) dir = "FORWARD";
+            else if (abs(throt) >= abs(steer) && throt < -10) dir = "BACKWARD";
+            else if (abs(steer) >  abs(throt) && steer >  10) dir = "RIGHT";
+            else if (abs(steer) >  abs(throt) && steer < -10) dir = "LEFT";
+
+            Serial.printf("[IN] throttle=%d  steer=%d  => %s\n", throt, steer, dir);
         }
     }
 }
